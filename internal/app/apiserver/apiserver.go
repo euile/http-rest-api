@@ -1,6 +1,10 @@
 package apiserver
 
 import (
+	"io"
+	"net/http"
+
+	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
 
@@ -8,6 +12,7 @@ import (
 type APIServer struct {
 	config *Config
 	logger *logrus.Logger
+	router *mux.Router
 }
 
 // New ..
@@ -15,6 +20,7 @@ func New(config *Config) *APIServer { // возвращает указатель
 	return &APIServer{
 		config: config,
 		logger: logrus.New(),
+		router: mux.NewRouter(),
 	}
 }
 
@@ -25,9 +31,13 @@ func (s *APIServer) Start() error { // для запуска http сервера
 		return err
 	}
 
+	// т.к. этот метода не возвращает ошибок, то мы его никак не обрабатываем
+	s.configureRouter()
+
 	s.logger.Info("starting API server")
 
-	return nil
+	// в качествк адреса мы возьмем BindAddr из config`a, 2-возьмем поле router
+	return http.ListenAndServe(s.config.BindAddr, s.router)
 }
 
 func (s *APIServer) configureLogger() error { // конфигурируем логгер
@@ -44,4 +54,25 @@ func (s *APIServer) configureLogger() error { // конфигурируем ло
 
 	//выходим из функции
 	return nil
+}
+
+func (s *APIServer) configureRouter() {
+	// никакую ошибку вернуть не может, потому что он просто описывает роутинг
+
+	s.router.HandleFunc("/hello", s.handleHello())
+}
+
+func (s *APIServer) handleHello() http.HandlerFunc {
+	// возвращает HandlerFunc
+	// идея у хэндлера возвращать не привычную функцию (как в большгинстве туториалов)
+	// а именно вот такой интерфейс (http.HandlerFunc)-функцию
+	// прикол в том что мы можем *тут* определить какие-то переменные, которые
+	// будут использоваться только в этом хэндлере, и код *тут*
+	// выполнится всего 1 раз
+	// вся логика обработки запроса будет описываться в функции ниже :)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "Hello")
+	}
+
 }
